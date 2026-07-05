@@ -522,7 +522,7 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // Fallback all non-API GET requests to index.html for React Router compatibility
-app.get('*', (req, res, next) => {
+app.get('(.*)', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
     return next();
   }

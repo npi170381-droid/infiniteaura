@@ -20,10 +20,10 @@ export default function App() {
   
   // Security Authentication states
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    return sessionStorage.getItem('iar_is_admin') === 'true';
+    return localStorage.getItem('iar_is_admin') === 'true';
   });
   const [adminPassword, setAdminPassword] = useState(() => {
-    return sessionStorage.getItem('iar_admin_password') || '';
+    return localStorage.getItem('iar_admin_password') || '';
   });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -31,7 +31,7 @@ export default function App() {
 
   // User Authentication states
   const [currentUser, setCurrentUser] = useState(() => {
-    const raw = sessionStorage.getItem('iar_current_user');
+    const raw = localStorage.getItem('iar_current_user');
     return raw ? JSON.parse(raw) : null;
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -232,8 +232,8 @@ export default function App() {
       if (res.ok) {
         setIsAdminAuthenticated(true);
         setAdminPassword(passwordInput);
-        sessionStorage.setItem('iar_is_admin', 'true');
-        sessionStorage.setItem('iar_admin_password', passwordInput);
+        localStorage.setItem('iar_is_admin', 'true');
+        localStorage.setItem('iar_admin_password', passwordInput);
         setShowLoginModal(false);
         setActiveView('admin');
         addToast('Admin Authenticated', 'Access granted to owner console.', 'admin');
@@ -248,21 +248,21 @@ export default function App() {
   const handleAdminLogout = () => {
     setIsAdminAuthenticated(false);
     setAdminPassword('');
-    sessionStorage.removeItem('iar_is_admin');
-    sessionStorage.removeItem('iar_admin_password');
+    localStorage.removeItem('iar_is_admin');
+    localStorage.removeItem('iar_admin_password');
     setActiveView('user');
     addToast('Admin Logged Out', 'Owner dashboard credentials cleared.', 'info');
   };
 
   const handleLoginSuccess = (userData) => {
     setCurrentUser(userData);
-    sessionStorage.setItem('iar_current_user', JSON.stringify(userData));
+    localStorage.setItem('iar_current_user', JSON.stringify(userData));
     addToast('Authenticated', `Welcome back, ${userData.name}!`, 'success');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    sessionStorage.removeItem('iar_current_user');
+    localStorage.removeItem('iar_current_user');
     setActiveView('user');
     addToast('Logged Out', 'Successfully logged out.', 'info');
   };

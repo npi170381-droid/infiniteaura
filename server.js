@@ -6,10 +6,48 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import pg from 'pg';
+const { Client } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, 'db.json');
+
+let pgClient = null;
+const DATABASE_URL = process.env.DATABASE_URL;
+
+async function initPg() {
+  if (!DATABASE_URL) return null;
+  try {
+    pgClient = new Client({
+      connectionString: DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    await pgClient.connect();
+    console.log('[DB] Connected to Render PostgreSQL successfully.');
+
+    // Create table if not exists
+    await pgClient.query(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        id VARCHAR(50) PRIMARY KEY,
+        data JSONB NOT NULL
+      )
+    `);
+
+    // Check if state row exists
+    const res = await pgClient.query("SELECT data FROM app_state WHERE id = 'state'");
+    if (res.rows.length === 0) {
+      console.log('[DB] PostgreSQL table is empty. Seeding from local db.json...');
+      const localData = await readLocalDb();
+      await pgClient.query("INSERT INTO app_state (id, data) VALUES ('state', $1)", [JSON.stringify(localData)]);
+      console.log('[DB] Seed complete.');
+    }
+  } catch (error) {
+    console.error('[DB] Failed to connect to PostgreSQL:', error);
+  }
+}
 
 const app = express();
 app.use(cors());
@@ -87,8 +125,8 @@ const seedMoviesList = [
   }
 ];
 
-// Database read/write helpers
-async function readDb() {
+// Local database read/write fallbacks
+async function readLocalDb() {
   try {
     const raw = await fs.readFile(dbPath, 'utf8');
     return JSON.parse(raw);
@@ -98,12 +136,42 @@ async function readDb() {
   }
 }
 
-async function writeDb(data) {
+async function writeLocalDb(data) {
   try {
     await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
     console.error('Error writing database file:', error);
   }
+}
+
+// Database read/write helpers (PostgreSQL with local fallback)
+async function readDb() {
+  if (DATABASE_URL && pgClient) {
+    try {
+      const res = await pgClient.query("SELECT data FROM app_state WHERE id = 'state'");
+      if (res.rows.length > 0) {
+        return res.rows[0].data;
+      }
+    } catch (error) {
+      console.error('Error reading database from PostgreSQL:', error);
+    }
+  }
+  return readLocalDb();
+}
+
+async function writeDb(data) {
+  if (DATABASE_URL && pgClient) {
+    try {
+      await pgClient.query(
+        "INSERT INTO app_state (id, data) VALUES ('state', $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        [JSON.stringify(data)]
+      );
+      return;
+    } catch (error) {
+      console.error('Error writing database to PostgreSQL:', error);
+    }
+  }
+  await writeLocalDb(data);
 }
 
 // Live activity logs helper
@@ -531,7 +599,16 @@ app.get(/.*/, (req, res, next) => {
 
 // Dynamic Port Assignment
 const PORT = process.env.PORT || 5001;
-httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Infinity Aura Back-End Active on http://localhost:${PORT}`);
-  console.log('📡 Socket.io Listener configured. REST routes ready.\n');
-});
+
+const startServer = () => {
+  httpServer.listen(PORT, () => {
+    console.log(`\n🚀 Infinity Aura Back-End Active on http://localhost:${PORT}`);
+    console.log('📡 Socket.io Listener configured. REST routes ready.\n');
+  });
+};
+
+if (DATABASE_URL) {
+  initPg().then(startServer);
+} else {
+  startServer();
+}

@@ -1,3 +1,7 @@
+databases:
+  - name: ticket-db
+    plan: free
+
 services:
   # Movie Ticket Booking System Service (Unified Monolith)
   - type: web
@@ -10,3 +14,7 @@ services:
         value: production
       - key: PORT
         value: 10000 # Render assigns a port, Flask/Express binds to process.env.PORT
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ticket-db
+          property: connectionString
